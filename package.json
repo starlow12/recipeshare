@@ -1,5 +1,5 @@
 {
-  "name": "recipe-instagram",
+  "name": "recipe-gram",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -10,13 +10,10 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.38.4",
-    "@supabase/auth-helpers-nextjs": "^0.8.7",
-    "@supabase/auth-helpers-react": "^0.4.2",
     "next": "14.0.3",
     "react": "^18",
     "react-dom": "^18",
     "lucide-react": "^0.294.0",
-    "framer-motion": "^10.16.5",
     "react-hot-toast": "^2.4.1",
     "uuid": "^9.0.1"
   },
@@ -33,4 +30,3 @@
     "typescript": "^5"
   }
 }
-
