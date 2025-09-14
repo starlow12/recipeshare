@@ -1,0 +1,36 @@
+{
+  "name": "recipe-instagram",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.38.4",
+    "@supabase/auth-helpers-nextjs": "^0.8.7",
+    "@supabase/auth-helpers-react": "^0.4.2",
+    "next": "14.0.3",
+    "react": "^18",
+    "react-dom": "^18",
+    "lucide-react": "^0.294.0",
+    "framer-motion": "^10.16.5",
+    "react-hot-toast": "^2.4.1",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "@types/uuid": "^9.0.7",
+    "autoprefixer": "^10.0.1",
+    "eslint": "^8",
+    "eslint-config-next": "14.0.3",
+    "postcss": "^8",
+    "tailwindcss": "^3.3.0",
+    "typescript": "^5"
+  }
+}
+
