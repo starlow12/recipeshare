@@ -3,7 +3,6 @@
 import React, { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/hooks/useAuth'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -13,7 +12,6 @@ const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   
-  const { signIn } = useAuth()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -27,16 +25,14 @@ const LoginPage = () => {
     setLoading(true)
 
     try {
-      const { error } = await signIn(email, password)
+      // TODO: Add Supabase authentication here
+      // For now, just simulate success
+      await new Promise(resolve => setTimeout(resolve, 1000))
       
-      if (error) {
-        toast.error(error.message)
-      } else {
-        toast.success('Welcome back!')
-        router.push('/')
-      }
-    } catch (error) {
-      toast.error('Something went wrong')
+      toast.success('Welcome back!')
+      router.push('/')
+    } catch (error: any) {
+      toast.error(error?.message || 'Something went wrong')
     } finally {
       setLoading(false)
     }
