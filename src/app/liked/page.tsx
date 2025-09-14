@@ -34,6 +34,8 @@ const LikedRecipesPage = () => {
   useEffect(() => {
     if (user) {
       fetchLikedRecipes()
+    } else {
+      setLoading(false)
     }
   }, [user])
 
@@ -65,7 +67,7 @@ const LikedRecipesPage = () => {
       if (error) throw error
 
       // Extract recipes and add liked/saved status
-      const recipesWithStatus = savedRecipesData?.map(item => ({
+      const recipesWithStatus: Recipe[] = savedRecipesData?.map((item: any) => ({
         ...item.recipes,
         is_saved: true,
         is_liked: false // We'll check this separately
@@ -73,7 +75,7 @@ const LikedRecipesPage = () => {
 
       // Check which recipes are also liked by the user
       if (recipesWithStatus.length > 0) {
-        const recipeIds = recipesWithStatus.map(r => r.id)
+        const recipeIds = recipesWithStatus.map((r: Recipe) => r.id)
         
         const { data: likesData } = await supabase
           .from('likes')
@@ -83,7 +85,7 @@ const LikedRecipesPage = () => {
 
         const likedRecipeIds = new Set(likesData?.map(l => l.recipe_id) || [])
 
-        const recipesWithLikes = recipesWithStatus.map(recipe => ({
+        const recipesWithLikes = recipesWithStatus.map((recipe: Recipe) => ({
           ...recipe,
           is_liked: likedRecipeIds.has(recipe.id)
         }))
@@ -123,6 +125,22 @@ const LikedRecipesPage = () => {
         <Navigation />
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navigation />
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Please sign in
+            </h2>
+            <p className="text-gray-600">Sign in to view your saved recipes.</p>
+          </div>
         </div>
       </div>
     )
@@ -202,7 +220,7 @@ const LikedRecipesPage = () => {
             <p className="text-gray-500 mb-6">
               Start saving recipes you love to see them here
             </p>
-            <a
+            
               href="/"
               className="inline-block bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors font-medium"
             >
