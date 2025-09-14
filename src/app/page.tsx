@@ -3,14 +3,11 @@
 import React, { useState, useEffect } from 'react'
 import { Navigation } from '@/components/Navigation'
 import { RecipeCard } from '@/components/RecipeCard'
-import { StoryRing } from '@/components/StoryRing'
-import { StoryViewer } from '@/components/StoryViewer'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/useAuth'
 import { Search } from 'lucide-react'
-import Image from 'next/image'
 import Link from 'next/link'
-import type { Recipe, Story } from '@/lib/types'
+import type { Recipe } from '@/lib/types'
 
 const RECIPE_CATEGORIES = [
   'All',
@@ -29,18 +26,14 @@ const RECIPE_CATEGORIES = [
 const HomePage = () => {
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>([])
-  const [storiesData, setStoriesData] = useState<{ [key: string]: Story[] }>({})
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
-  const [viewingStories, setViewingStories] = useState<string | null>(null)
   
   const { user, profile } = useAuth()
 
   useEffect(() => {
-    if (user) {
-      fetchData()
-    }
+    fetchData()
   }, [user])
 
   useEffect(() => {
@@ -49,16 +42,8 @@ const HomePage = () => {
 
   const fetchData = async () => {
     try {
-      // Fetch recipes from followed users + own recipes
-      const { data: followedUsers } = await supabase
-        .from('follows')
-        .select('following_id')
-        .eq('follower_id', user!.id)
-
-      const followedUserIds = followedUsers?.map(f => f.following_id) || []
-      const userIds = [...followedUserIds, user!.id]
-
-      const { data: recipesData, error: recipesError } = await supabase
+      // Fetch public recipes (all recipes if not logged in, or personalized if logged in)
+      let query = supabase
         .from('recipes')
         .select(`
           *,
@@ -67,64 +52,57 @@ const HomePage = () => {
             avatar_url
           )
         `)
-        .in('created_by', userIds)
         .order('created_at', { ascending: false })
+
+      // If user is logged in, prioritize followed users + own recipes
+      if (user) {
+        const { data: followedUsers } = await supabase
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', user.id)
+
+        const followedUserIds = followedUsers?.map(f => f.following_id) || []
+        const userIds = [...followedUserIds, user.id]
+        
+        if (userIds.length > 1) { // Only filter if user follows someone or has own recipes
+          query = query.in('created_by', userIds)
+        }
+      }
+
+      const { data: recipesData, error: recipesError } = await query.limit(20)
 
       if (recipesError) throw recipesError
 
-      // Check which recipes are liked/saved by current user
-      const recipeIds = recipesData?.map(r => r.id) || []
+      // Check which recipes are liked/saved by current user (if logged in)
+      let recipesWithStatus = recipesData || []
       
-      const [likesResult, savedResult] = await Promise.all([
-        supabase
-          .from('likes')
-          .select('recipe_id')
-          .eq('user_id', user!.id)
-          .in('recipe_id', recipeIds),
-        supabase
-          .from('saved_recipes')
-          .select('recipe_id')
-          .eq('user_id', user!.id)
-          .in('recipe_id', recipeIds)
-      ])
+      if (user && recipesData) {
+        const recipeIds = recipesData.map(r => r.id)
+        
+        const [likesResult, savedResult] = await Promise.all([
+          supabase
+            .from('likes')
+            .select('recipe_id')
+            .eq('user_id', user.id)
+            .in('recipe_id', recipeIds),
+          supabase
+            .from('saved_recipes')
+            .select('recipe_id')
+            .eq('user_id', user.id)
+            .in('recipe_id', recipeIds)
+        ])
 
-      const likedRecipeIds = new Set(likesResult.data?.map(l => l.recipe_id) || [])
-      const savedRecipeIds = new Set(savedResult.data?.map(s => s.recipe_id) || [])
+        const likedRecipeIds = new Set(likesResult.data?.map(l => l.recipe_id) || [])
+        const savedRecipeIds = new Set(savedResult.data?.map(s => s.recipe_id) || [])
 
-      const recipesWithStatus = recipesData?.map(recipe => ({
-        ...recipe,
-        is_liked: likedRecipeIds.has(recipe.id),
-        is_saved: savedRecipeIds.has(recipe.id)
-      })) || []
+        recipesWithStatus = recipesData.map(recipe => ({
+          ...recipe,
+          is_liked: likedRecipeIds.has(recipe.id),
+          is_saved: savedRecipeIds.has(recipe.id)
+        }))
+      }
 
       setRecipes(recipesWithStatus)
-
-      // Fetch stories from followed users
-      const { data: storiesData, error: storiesError } = await supabase
-        .from('stories')
-        .select(`
-          *,
-          profiles!stories_user_id_fkey (
-            username,
-            avatar_url
-          )
-        `)
-        .in('user_id', userIds)
-        .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false })
-
-      if (storiesError) throw storiesError
-
-      // Group stories by user
-      const groupedStories: { [key: string]: Story[] } = {}
-      storiesData?.forEach(story => {
-        if (!groupedStories[story.user_id]) {
-          groupedStories[story.user_id] = []
-        }
-        groupedStories[story.user_id].push(story)
-      })
-
-      setStoriesData(groupedStories)
 
     } catch (error) {
       console.error('Error fetching data:', error)
@@ -152,10 +130,6 @@ const HomePage = () => {
     setFilteredRecipes(filtered)
   }
 
-  const handleStoryClick = (userId: string) => {
-    setViewingStories(userId)
-  }
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -167,53 +141,41 @@ const HomePage = () => {
     )
   }
 
-  const storyUsers = Object.entries(storiesData).map(([userId, stories]) => ({
-    userId,
-    stories,
-    profile: stories[0]?.profiles
-  }))
-
   return (
     <div className="min-h-screen bg-gray-50">
       <Navigation />
       
       <div className="max-w-6xl mx-auto px-4 py-6">
-        {/* Stories Section */}
-        {storyUsers.length > 0 && (
-          <div className="mb-8">
-            <div className="flex space-x-4 overflow-x-auto pb-2">
-              {storyUsers.map(({ userId, stories, profile }) => (
-                <button
-                  key={userId}
-                  onClick={() => handleStoryClick(userId)}
-                  className="flex-shrink-0 text-center"
-                >
-                  <StoryRing hasStory={true} size="md">
-                    {profile?.avatar_url ? (
-                      <Image
-                        src={profile.avatar_url}
-                        alt={profile.username || ''}
-                        width={60}
-                        height={60}
-                        className="w-15 h-15 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-15 h-15 rounded-full bg-gray-300" />
-                    )}
-                  </StoryRing>
-                  <p className="text-xs text-gray-600 mt-1 max-w-16 truncate">
-                    {profile?.username}
-                  </p>
-                </button>
-              ))}
+        {/* Welcome Section */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+            Welcome to RecipeGram
+          </h1>
+          <p className="text-gray-600">
+            Discover and share amazing recipes from around the world
+          </p>
+          {!user && (
+            <div className="mt-4 space-x-4">
+              <Link
+                href="/auth/signup"
+                className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                Join Now
+              </Link>
+              <Link
+                href="/auth/login"
+                className="bg-gray-200 text-gray-800 px-6 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Sign In
+              </Link>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Search and Filter Section */}
         <div className="mb-6 space-y-4">
           {/* Search Bar */}
-          <div className="relative">
+          <div className="relative max-w-md mx-auto">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
@@ -225,20 +187,22 @@ const HomePage = () => {
           </div>
 
           {/* Category Filter */}
-          <div className="flex space-x-2 overflow-x-auto pb-2">
-            {RECIPE_CATEGORIES.map((category) => (
-              <button
-                key={category}
-                onClick={() => setSelectedCategory(category)}
-                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                  selectedCategory === category
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                {category}
-              </button>
-            ))}
+          <div className="flex justify-center">
+            <div className="flex space-x-2 overflow-x-auto pb-2">
+              {RECIPE_CATEGORIES.map((category) => (
+                <button
+                  key={category}
+                  onClick={() => setSelectedCategory(category)}
+                  className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                    selectedCategory === category
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-white text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -251,35 +215,28 @@ const HomePage = () => {
           </div>
         ) : (
           <div className="text-center py-12">
-            <p className="text-gray-500 text-lg mb-4">
+            <div className="text-6xl mb-4">🍽️</div>
+            <h3 className="text-xl font-medium text-gray-900 mb-2">
               {searchTerm || selectedCategory !== 'All' 
-                ? 'No recipes found matching your criteria' 
-                : 'No recipes to show'}
+                ? 'No recipes found' 
+                : 'No recipes yet'}
+            </h3>
+            <p className="text-gray-500 mb-6">
+              {searchTerm || selectedCategory !== 'All'
+                ? 'Try adjusting your search or filter criteria'
+                : 'Be the first to share a delicious recipe!'}
             </p>
-            {(!searchTerm && selectedCategory === 'All') && (
-              <div className="space-y-2">
-                <p className="text-gray-400">Start by following some users or creating your first recipe!</p>
-                <div className="space-x-4">
-                  <Link
-                    href="/recipe/create"
-                    className="inline-block bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors"
-                  >
-                    Create Recipe
-                  </Link>
-                </div>
-              </div>
+            {user && (
+              <Link
+                href="/recipe/create"
+                className="inline-block bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors font-medium"
+              >
+                Create Your First Recipe
+              </Link>
             )}
           </div>
         )}
       </div>
-
-      {/* Story Viewer Modal */}
-      {viewingStories && storiesData[viewingStories] && (
-        <StoryViewer
-          stories={storiesData[viewingStories]}
-          onClose={() => setViewingStories(null)}
-        />
-      )}
     </div>
   )
 }
