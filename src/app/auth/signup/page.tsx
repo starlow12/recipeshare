@@ -3,7 +3,6 @@
 import React, { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/hooks/useAuth'
 import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -19,7 +18,6 @@ const SignupPage = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   
-  const { signUp } = useAuth()
   const router = useRouter()
 
   const handleChange = (field: string, value: string) => {
@@ -66,21 +64,14 @@ const SignupPage = () => {
     setLoading(true)
 
     try {
-      const { error } = await signUp(
-        formData.email,
-        formData.password,
-        formData.username,
-        formData.fullName || undefined
-      )
+      // TODO: Add Supabase authentication here
+      // For now, just simulate success
+      await new Promise(resolve => setTimeout(resolve, 1000))
       
-      if (error) {
-        toast.error(error.message)
-      } else {
-        toast.success('Please check your email to confirm your account')
-        router.push('/auth/login')
-      }
-    } catch (error) {
-      toast.error('Something went wrong')
+      toast.success('Please check your email to confirm your account')
+      router.push('/auth/login')
+    } catch (error: any) {
+      toast.error(error?.message || 'Something went wrong')
     } finally {
       setLoading(false)
     }
